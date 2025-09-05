@@ -1,177 +1,69 @@
 import logging
-import asyncio
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import (
-    Application,
-    CommandHandler,
-    CallbackQueryHandler,
-    ContextTypes,
-    MessageHandler,
-    filters,
-)
+from telegram import Update
+from telegram.ext import Application, CommandHandler, ContextTypes
 from pymongo import MongoClient
 
-# --- Logging ---
+# =============== CONFIG ===============
+BOT_TOKEN = "8250718066:AAEA0w45WBRtPhPjcr-A3lhGLheHNNM4qUw"
+OWNER_ID = 7270006608   # <- yaha apna Telegram ID daalo
+
+MONGO_URI = "mongodb+srv://afzal99550:afzal99550@cluster0.aqmbh9q.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0"  # apna Mongo URI
+DB_NAME = "broadcast_bot"
+COLLECTION = "chats"
+# ======================================
+
 logging.basicConfig(
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    level=logging.INFO
 )
 
-# --- CONFIG ---
-BOT_TOKEN = "8250718066:AAEA0w45WBRtPhPjcr-A3lhGLheHNNM4qUw"   # apna BotFather token daal
-MONGO_URI = "mongodb+srv://TRUSTLYTRANSACTIONBOT:TRUSTLYTRANSACTIONBOT@cluster0.t60mxb7.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0"   # apna Mongo URI daal
-OWNER_ID = 7270006608           # Owner Telegram ID
-
-# --- Mongo Setup ---
+# MongoDB
 client = MongoClient(MONGO_URI)
-db = client["telegram_bot"]
-groups_col = db["groups"]
-
-# === Pagination Helper ===
-GROUPS_PER_PAGE = 10   # 10 groups per page
+db = client[DB_NAME]
+chats_col = db[COLLECTION]
 
 
-def build_page_text(groups, page: int):
-    start = page * GROUPS_PER_PAGE
-    end = start + GROUPS_PER_PAGE
-    page_groups = groups[start:end]
+# ✅ jab bhi bot add hoga /start ya group me -> save karo
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    chat_id = update.effective_chat.id
+    chat_title = update.effective_chat.title or update.effective_chat.first_name
 
-    text = f"📌 Saved Groups (Page {page+1}):\n\n"
-    for i, g in enumerate(page_groups, start=1 + start):
-        title = g.get("title", "Unknown").replace("[", "").replace("]", "")
-        link = g.get("invite_link")
-        if link:
-            text += f"{i}. [{title}]({link})\n"
-        else:
-            text += f"{i}. {title} ❌ No Link\n"
-    return text
+    if not chats_col.find_one({"chat_id": chat_id}):
+        chats_col.insert_one({"chat_id": chat_id, "title": chat_title})
+        logging.info(f"Saved chat: {chat_title} ({chat_id})")
+
+    await update.message.reply_text("✅ Bot is active here!")
 
 
-def build_nav_buttons(groups, page: int):
-    start = page * GROUPS_PER_PAGE
-    end = start + GROUPS_PER_PAGE
-
-    nav_buttons = []
-    if page > 0:
-        nav_buttons.append(InlineKeyboardButton("⬅ Prev", callback_data=f"list:{page-1}"))
-    if end < len(groups):
-        nav_buttons.append(InlineKeyboardButton("➡ Next", callback_data=f"list:{page+1}"))
-
-    if nav_buttons:
-        return InlineKeyboardMarkup([nav_buttons])
-    return None
-
-
-# === When Bot is Added to Group ===
-async def bot_added(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    for member in update.message.new_chat_members:
-        if member.id == context.bot.id:
-            chat_id = update.effective_chat.id
-            title = update.effective_chat.title
-
-            # Export invite link (agar bot ke paas admin + invite rights hai)
-            invite_link = None
-            try:
-                invite_link = await context.bot.export_chat_invite_link(chat_id)
-            except Exception:
-                pass
-
-            # Save group in MongoDB
-            groups_col.update_one(
-                {"chat_id": chat_id},
-                {"$set": {"title": title, "invite_link": invite_link}},
-                upsert=True
-            )
-
-            logging.info(f"✅ Bot added in {title} ({chat_id})")
-
-
-# === /list Command ===
-async def list_groups(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.effective_user.id != OWNER_ID:
-        return await update.message.reply_text("❌ Only owner can use this command!")
-
-    groups = list(groups_col.find())
-    if not groups:
-        return await update.message.reply_text("❌ No groups saved yet.")
-
-    text = build_page_text(groups, 0)
-    nav = build_nav_buttons(groups, 0)
-
-    await update.message.reply_text(
-        text,
-        reply_markup=nav,
-        parse_mode="MarkdownV2",
-        disable_web_page_preview=True
-    )
-
-
-# === Callback for Pagination ===
-async def list_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    await query.answer()
-
-    data = query.data
-    if not data.startswith("list:"):
-        return
-
-    page = int(data.split(":")[1])
-    groups = list(groups_col.find())
-
-    if not groups:
-        return await query.edit_message_text("❌ No groups saved yet.")
-
-    text = build_page_text(groups, page)
-    nav = build_nav_buttons(groups, page)
-
-    await query.edit_message_text(
-        text=text,
-        reply_markup=nav,
-        parse_mode="MarkdownV2",
-        disable_web_page_preview=True
-    )
-
-
-# === Broadcast Command (Owner Only) ===
+# ✅ Broadcast sirf Owner ke liye
 async def broadcast(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_user.id
-    if user_id != OWNER_ID:
-        return await update.message.reply_text("❌ Only owner can use this command!")
+    if update.effective_user.id != OWNER_ID:
+        return await update.message.reply_text("❌ You are not authorized!")
 
     if not context.args:
-        return await update.message.reply_text("Usage: /broadcast your_message")
+        return await update.message.reply_text("⚠ Usage: /broadcast Your Message")
 
-    message = " ".join(context.args)
+    text = " ".join(context.args)
 
-    success, failed = 0, 0
-    groups = list(groups_col.find())
+    chats = list(chats_col.find())
+    success = 0
+    fail = 0
 
-    current_chat = update.effective_chat.id  # jaha command diya gaya
-
-    for g in groups:
-        chat_id = g.get("chat_id")
-        if not chat_id or chat_id == current_chat:
-            continue
+    for chat in chats:
         try:
-            await context.bot.send_message(chat_id=chat_id, text=message)
+            await context.bot.send_message(chat_id=chat["chat_id"], text=text)
             success += 1
-            await asyncio.sleep(0.5)  # floodwait handle
         except Exception as e:
-            logging.error(f"❌ Failed to send in {chat_id}: {e}")
-            failed += 1
+            logging.warning(f"Failed to send to {chat['chat_id']}: {e}")
+            fail += 1
 
-    # Confirm owner ko reply de do
-    await update.message.reply_text(
-        f"📢 Broadcast finished!\n✅ Sent: {success}\n❌ Failed: {failed}"
-    )
+    await update.message.reply_text(f"📢 Broadcast done!\n✅ Sent: {success}\n❌ Failed: {fail}")
 
 
-# === Main ===
 def main():
     app = Application.builder().token(BOT_TOKEN).build()
 
-    app.add_handler(MessageHandler(filters.StatusUpdate.NEW_CHAT_MEMBERS, bot_added))
-    app.add_handler(CommandHandler("list", list_groups))
-    app.add_handler(CallbackQueryHandler(list_callback, pattern="^list:"))
+    app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("broadcast", broadcast))
 
     print("🤖 Bot started...")
