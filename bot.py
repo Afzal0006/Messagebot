@@ -18,7 +18,7 @@ logging.basicConfig(
 # --- CONFIG ---
 BOT_TOKEN = "8250718066:AAEA0w45WBRtPhPjcr-A3lhGLheHNNM4qUw"
 MONGO_URI = "mongodb+srv://afzal99550:afzal99550@cluster0.aqmbh9q.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0"
-OWNER_ID = 6998916494  # Owner ID
+OWNER_ID = 7270006608  # Owner ID
 
 # --- Mongo Setup ---
 client = MongoClient(MONGO_URI)
