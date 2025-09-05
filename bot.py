@@ -10,7 +10,7 @@ logging.basicConfig(
 
 # --- CONFIG ---
 BOT_TOKEN = "8250718066:AAEA0w45WBRtPhPjcr-A3lhGLheHNNM4qUw"   # <-- अपना BotFather token डालें
-MONGO_URI = "mongodb+srv://afzal99550:afzal99550@cluster0.aqmbh9q.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0"  # <-- MongoDB URI डालें (Mongo Atlas भी चला सकते हो)
+MONGO_URI = "mongodb+srv://afzal99550:afzal99550@cluster0.aqmbh9q.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0"  # <-- MongoDB URI डालें (Atlas भी चलेगा)
 OWNER_ID = 7363327309  # <-- अपना Telegram User ID डालें
 
 # --- Mongo Setup ---
@@ -66,16 +66,39 @@ async def broadcast(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     message = " ".join(context.args)
 
-    # Send to all saved groups
     success, failed = 0, 0
     for group in groups_col.find():
+        chat_id = group.get("chat_id")
+        if not chat_id:
+            continue
         try:
-            await context.bot.send_message(chat_id=group["chat_id"], text=message)
+            await context.bot.send_message(chat_id=chat_id, text=message)
             success += 1
-        except Exception:
+        except Exception as e:
+            logging.error(f"❌ Failed to send in {chat_id}: {e}")
             failed += 1
 
-    await update.message.reply_text(f"📢 Broadcast done!\n✅ Success: {success}\n❌ Failed: {failed}")
+    await update.message.reply_text(
+        f"📢 Broadcast completed!\n✅ Sent: {success}\n❌ Failed: {failed}"
+    )
+
+# --- List Groups Command (Owner Only) ---
+async def list_groups(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    if user_id != OWNER_ID:
+        return await update.message.reply_text("❌ Only owner can use this command!")
+
+    groups = groups_col.find()
+    text = "📌 Saved Groups:\n\n"
+    count = 0
+    for g in groups:
+        text += f"• {g.get('title', 'Unknown')} (ID: {g.get('chat_id')})\n"
+        count += 1
+
+    if count == 0:
+        text = "❌ No groups saved yet."
+
+    await update.message.reply_text(text)
 
 # --- Main Function ---
 def main():
@@ -83,6 +106,7 @@ def main():
 
     app.add_handler(MessageHandler(filters.StatusUpdate.NEW_CHAT_MEMBERS, bot_added))
     app.add_handler(CommandHandler("broadcast", broadcast))
+    app.add_handler(CommandHandler("listgroups", list_groups))
 
     print("🤖 Bot started...")
     app.run_polling()
