@@ -1,4 +1,5 @@
 import logging
+import asyncio
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
     Application,
@@ -16,9 +17,9 @@ logging.basicConfig(
 )
 
 # --- CONFIG ---
-BOT_TOKEN = "8250718066:AAEA0w45WBRtPhPjcr-A3lhGLheHNNM4qUw"   # BotFather token
-MONGO_URI = "mongodb+srv://afzal99550:afzal99550@cluster0.aqmbh9q.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0"
-OWNER_ID = 7270006608  # Owner Telegram ID
+BOT_TOKEN = "8250718066:AAEA0w45WBRtPhPjcr-A3lhGLheHNNM4qUw"   # apna BotFather token daal
+MONGO_URI = "mongodb+srv://TRUSTLYTRANSACTIONBOT:TRUSTLYTRANSACTIONBOT@cluster0.t60mxb7.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0"   # apna Mongo URI daal
+OWNER_ID = 7270006608           # Owner Telegram ID
 
 # --- Mongo Setup ---
 client = MongoClient(MONGO_URI)
@@ -26,7 +27,7 @@ db = client["telegram_bot"]
 groups_col = db["groups"]
 
 # === Pagination Helper ===
-GROUPS_PER_PAGE = 15
+GROUPS_PER_PAGE = 10   # 10 groups per page
 
 
 def build_page_text(groups, page: int):
@@ -36,7 +37,7 @@ def build_page_text(groups, page: int):
 
     text = f"📌 Saved Groups (Page {page+1}):\n\n"
     for i, g in enumerate(page_groups, start=1 + start):
-        title = g.get("title", "Unknown")
+        title = g.get("title", "Unknown").replace("[", "").replace("]", "")
         link = g.get("invite_link")
         if link:
             text += f"{i}. [{title}]({link})\n"
@@ -99,7 +100,7 @@ async def list_groups(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         text,
         reply_markup=nav,
-        parse_mode="Markdown",
+        parse_mode="MarkdownV2",
         disable_web_page_preview=True
     )
 
@@ -116,13 +117,16 @@ async def list_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     page = int(data.split(":")[1])
     groups = list(groups_col.find())
 
+    if not groups:
+        return await query.edit_message_text("❌ No groups saved yet.")
+
     text = build_page_text(groups, page)
     nav = build_nav_buttons(groups, page)
 
     await query.edit_message_text(
         text=text,
         reply_markup=nav,
-        parse_mode="Markdown",
+        parse_mode="MarkdownV2",
         disable_web_page_preview=True
     )
 
@@ -141,17 +145,21 @@ async def broadcast(update: Update, context: ContextTypes.DEFAULT_TYPE):
     success, failed = 0, 0
     groups = list(groups_col.find())
 
+    current_chat = update.effective_chat.id  # jaha command diya gaya
+
     for g in groups:
         chat_id = g.get("chat_id")
-        if not chat_id:
+        if not chat_id or chat_id == current_chat:
             continue
         try:
             await context.bot.send_message(chat_id=chat_id, text=message)
             success += 1
+            await asyncio.sleep(0.5)  # floodwait handle
         except Exception as e:
             logging.error(f"❌ Failed to send in {chat_id}: {e}")
             failed += 1
 
+    # Confirm owner ko reply de do
     await update.message.reply_text(
         f"📢 Broadcast finished!\n✅ Sent: {success}\n❌ Failed: {failed}"
     )
