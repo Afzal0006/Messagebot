@@ -1,5 +1,5 @@
 import logging
-from telegram import Update
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
 from pymongo import MongoClient
 
@@ -9,9 +9,9 @@ logging.basicConfig(
 )
 
 # --- CONFIG ---
-BOT_TOKEN = "8250718066:AAEA0w45WBRtPhPjcr-A3lhGLheHNNM4qUw"   # <-- अपना BotFather token डालें
-MONGO_URI = "mongodb+srv://afzal99550:afzal99550@cluster0.aqmbh9q.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0"  # <-- MongoDB URI डालें (Atlas भी चलेगा)
-OWNER_ID = 7270006608  # <-- अपना Telegram numeric User ID डालें
+BOT_TOKEN = "8250718066:AAEA0w45WBRtPhPjcr-A3lhGLheHNNM4qUw"   
+MONGO_URI = "mongodb+srv://afzal99550:afzal99550@cluster0.aqmbh9q.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0"  
+OWNER_ID = 7270006608  
 
 # --- Mongo Setup ---
 client = MongoClient(MONGO_URI)
@@ -22,17 +22,13 @@ groups_col = db["groups"]
 WELCOME_MESSAGES = [
     """🎬 YT Premium चाहिए किसी को exchange में?
 📩 Need Instagram old account – DM me asap""",
-
     """⚡ I need 16-22 Location group – DM fast, high price ☑️
 📌 High SMS only 🙀""",
-
     """🟢 I sell WhatsApp & Telegram accounts:
 • Whatsapp: ₹150 / India (Permanent – Never ban)
 • Telegram: ₹80 / (Permanent – Never ban)""",
-
     """✅ 1-1 करके ले सकते हो, proofs available।
 💰 Payment first or escrow.""",
-
     """🔥 Urgent Need!
 Baaghi 4 चाहिए भाई, जिसके पास हो तो message करे… 🍿🎥"""
 ]
@@ -91,16 +87,28 @@ async def list_groups(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return await update.message.reply_text("❌ Only owner can use this command!")
 
     groups = groups_col.find()
-    text = "📌 Saved Groups:\n\n"
+    buttons = []
     count = 0
+
     for g in groups:
-        text += f"• {g.get('title', 'Unknown')} (ID: {g.get('chat_id')})\n"
+        chat_id = g.get("chat_id")
+        title = g.get("title", "Unknown")
+
+        try:
+            # Generate invite link
+            link = await context.bot.create_chat_invite_link(chat_id)
+            buttons.append([InlineKeyboardButton(title, url=link.invite_link)])
+        except Exception as e:
+            logging.error(f"❌ Failed to get link for {chat_id}: {e}")
+            buttons.append([InlineKeyboardButton(f"{title} (No Link)", url="https://t.me/")])
+
         count += 1
 
     if count == 0:
-        text = "❌ No groups saved yet."
+        return await update.message.reply_text("❌ No groups saved yet.")
 
-    await update.message.reply_text(text)
+    keyboard = InlineKeyboardMarkup(buttons)
+    await update.message.reply_text("📌 Saved Groups:", reply_markup=keyboard)
 
 # --- Main Function ---
 def main():
@@ -108,7 +116,7 @@ def main():
 
     app.add_handler(MessageHandler(filters.StatusUpdate.NEW_CHAT_MEMBERS, bot_added))
     app.add_handler(CommandHandler("broadcast", broadcast))
-    app.add_handler(CommandHandler("listgroups", list_groups))
+    app.add_handler(CommandHandler("list", list_groups))  # ✅ Inline button list
 
     print("🤖 Bot started...")
     app.run_polling()
