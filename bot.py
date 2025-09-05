@@ -11,7 +11,7 @@ logging.basicConfig(
 # --- CONFIG ---
 BOT_TOKEN = "8250718066:AAEA0w45WBRtPhPjcr-A3lhGLheHNNM4qUw"   # <-- अपना BotFather token डालें
 MONGO_URI = "mongodb+srv://afzal99550:afzal99550@cluster0.aqmbh9q.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0"  # <-- MongoDB URI डालें (Atlas भी चलेगा)
-OWNER_ID = 7363327309  # <-- अपना Telegram User ID डालें
+OWNER_ID = 7270006608  # <-- अपना Telegram numeric User ID डालें
 
 # --- Mongo Setup ---
 client = MongoClient(MONGO_URI)
@@ -41,8 +41,8 @@ Baaghi 4 चाहिए भाई, जिसके पास हो तो mess
 async def bot_added(update: Update, context: ContextTypes.DEFAULT_TYPE):
     for member in update.message.new_chat_members:
         if member.id == context.bot.id:
-            chat_id = update.message.chat_id
-            title = update.message.chat.title
+            chat_id = update.effective_chat.id
+            title = update.effective_chat.title
 
             # Save group in MongoDB
             groups_col.update_one(
@@ -50,6 +50,8 @@ async def bot_added(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 {"$set": {"title": title}},
                 upsert=True
             )
+
+            logging.info(f"✅ Bot added in {title} ({chat_id})")
 
             # Send all 5 welcome messages
             for msg in WELCOME_MESSAGES:
