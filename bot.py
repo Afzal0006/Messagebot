@@ -1,4 +1,4 @@
-import logging
+import logging, random
 from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
 from pymongo import MongoClient
@@ -25,7 +25,19 @@ async def group_added(update: Update, context: ContextTypes.DEFAULT_TYPE):
             {"$set": {"title": chat.title}},
             upsert=True
         )
-        await update.message.reply_text("✅ Bot activated for this group!")
+
+        messages = [
+            "✅ Bot activated for this group!",
+            "🤖 Hello everyone! I'm here to help manage and broadcast messages.",
+            "📢 Use /broadcast <message> to send announcements to all groups.",
+            "⚙️ Only the owner can use /broadcast command.",
+            "💾 Group saved successfully in my database.",
+            f"👥 Group Name: {chat.title}"
+        ]
+
+        for msg in messages:
+            await update.message.reply_text(msg)
+
         logging.info(f"Group saved: {chat.title} ({chat.id})")
 
 # /broadcast command
@@ -50,14 +62,43 @@ async def broadcast(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await update.message.reply_text(f"✅ Sent: {success} | ❌ Failed: {fail}")
 
+
+# 🔄 Auto 24h Random Message Sender
+RANDOM_MESSAGES = [
+    "🌞 Good Morning! Stay positive today!",
+    "💡 Tip of the day: Consistency beats motivation.",
+    "🌙 Good Night! Sleep well and recharge.",
+    "🔥 Stay focused and keep pushing forward!",
+    "📢 Reminder: Use /broadcast <msg> to reach all groups instantly.",
+    "🤖 I’m your helpful bot – always active here!"
+]
+
+async def send_random_message(context: ContextTypes.DEFAULT_TYPE):
+    groups = groups_col.find()
+    for g in groups:
+        try:
+            msg = random.choice(RANDOM_MESSAGES)
+            await context.bot.send_message(chat_id=g["chat_id"], text=msg)
+            logging.info(f"Sent random msg to {g['chat_id']}: {msg}")
+        except Exception as e:
+            logging.warning(f"Failed random msg to {g['chat_id']} ({e})")
+
+
 def main():
     app = Application.builder().token(BOT_TOKEN).build()
 
+    # Handlers
     app.add_handler(MessageHandler(filters.StatusUpdate.NEW_CHAT_MEMBERS, group_added))
     app.add_handler(CommandHandler("broadcast", broadcast))
 
+    # Auto 24h random message
+    job_queue = app.job_queue
+    job_queue.run_repeating(send_random_message, interval=86400, first=10)  
+    # 86400 sec = 24h | "first=10" means start after 10 sec when bot runs
+
     print("Bot running...")
     app.run_polling()
+
 
 if __name__ == "__main__":
     main()
