@@ -1,15 +1,13 @@
-import logging, random
+import logging
 from telegram import Update
-from telegram.ext import (
-    Application, CommandHandler, MessageHandler, filters, ContextTypes, JobQueue
-)
+from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
 from pymongo import MongoClient
 
 # ====== CONFIG ======
 BOT_TOKEN = "8250718066:AAEA0w45WBRtPhPjcr-A3lhGLheHNNM4qUw"
 MONGO_URI = "mongodb+srv://afzal99550:afzal99550@cluster0.aqmbh9q.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0"
 DB_NAME = "broadcast_db"
-OWNER_ID = 7270006608
+OWNER_ID = 7270006608  # Change to your Telegram ID
 # ====================
 
 logging.basicConfig(level=logging.INFO)
@@ -64,43 +62,14 @@ async def broadcast(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await update.message.reply_text(f"✅ Sent: {success} | ❌ Failed: {fail}")
 
-
-# 🔄 Auto 24h Random Message Sender
-RANDOM_MESSAGES = [
-    "🌞 Good Morning! Stay positive today!",
-    "💡 Tip of the day: Consistency beats motivation.",
-    "🌙 Good Night! Sleep well and recharge.",
-    "🔥 Stay focused and keep pushing forward!",
-    "📢 Reminder: Use /broadcast <msg> to reach all groups instantly.",
-    "🤖 I’m your helpful bot – always active here!"
-]
-
-async def send_random_message(context: ContextTypes.DEFAULT_TYPE):
-    groups = groups_col.find()
-    for g in groups:
-        try:
-            msg = random.choice(RANDOM_MESSAGES)
-            await context.bot.send_message(chat_id=g["chat_id"], text=msg)
-            logging.info(f"Sent random msg to {g['chat_id']}: {msg}")
-        except Exception as e:
-            logging.warning(f"Failed random msg to {g['chat_id']} ({e})")
-
-
 def main():
-    # ✅ JobQueue manually create karna zaroori hai
-    job_queue = JobQueue()
-    app = Application.builder().token(BOT_TOKEN).job_queue(job_queue).build()
+    app = Application.builder().token(BOT_TOKEN).build()
 
-    # Handlers
     app.add_handler(MessageHandler(filters.StatusUpdate.NEW_CHAT_MEMBERS, group_added))
     app.add_handler(CommandHandler("broadcast", broadcast))
 
-    # Auto 24h random message
-    app.job_queue.run_repeating(send_random_message, interval=86400, first=10)
-
     print("Bot running...")
     app.run_polling()
-
 
 if __name__ == "__main__":
     main()
