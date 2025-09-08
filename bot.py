@@ -1,13 +1,15 @@
 import logging, random
 from telegram import Update
-from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
+from telegram.ext import (
+    Application, CommandHandler, MessageHandler, filters, ContextTypes, JobQueue
+)
 from pymongo import MongoClient
 
 # ====== CONFIG ======
 BOT_TOKEN = "8250718066:AAEA0w45WBRtPhPjcr-A3lhGLheHNNM4qUw"
 MONGO_URI = "mongodb+srv://afzal99550:afzal99550@cluster0.aqmbh9q.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0"
 DB_NAME = "broadcast_db"
-OWNER_ID = 7270006608  # Change to your Telegram ID
+OWNER_ID = 7270006608
 # ====================
 
 logging.basicConfig(level=logging.INFO)
@@ -85,16 +87,16 @@ async def send_random_message(context: ContextTypes.DEFAULT_TYPE):
 
 
 def main():
-    app = Application.builder().token(BOT_TOKEN).build()
+    # ✅ JobQueue manually create karna zaroori hai
+    job_queue = JobQueue()
+    app = Application.builder().token(BOT_TOKEN).job_queue(job_queue).build()
 
     # Handlers
     app.add_handler(MessageHandler(filters.StatusUpdate.NEW_CHAT_MEMBERS, group_added))
     app.add_handler(CommandHandler("broadcast", broadcast))
 
     # Auto 24h random message
-    job_queue = app.job_queue
-    job_queue.run_repeating(send_random_message, interval=86400, first=10)  
-    # 86400 sec = 24h | "first=10" means start after 10 sec when bot runs
+    app.job_queue.run_repeating(send_random_message, interval=86400, first=10)
 
     print("Bot running...")
     app.run_polling()
