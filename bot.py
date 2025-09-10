@@ -45,12 +45,27 @@ async def broadcast(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id != OWNER_ID:
         return await update.message.reply_text("⛔ Only owner can use this command!")
 
-    # Pura message lo (command ke baad ka part)
-    text = update.message.text
-    message = text[len("/broadcast "):].strip()
+    message = None
+
+    # 🔹 Case 1: Agar kisi message ko reply kiya hai
+    if update.message.reply_to_message:
+        if update.message.reply_to_message.text:
+            message = update.message.reply_to_message.text
+        elif update.message.reply_to_message.caption:
+            message = update.message.reply_to_message.caption
+
+    # 🔹 Case 2: Agar direct /broadcast <message> likha hai
+    else:
+        text = update.message.text
+        if text.lower().startswith("/broadcast "):
+            message = text[len("/broadcast "):].strip()
 
     if not message:
-        return await update.message.reply_text("Usage: /broadcast <message>")
+        return await update.message.reply_text(
+            "Usage:\n"
+            "➡️ `/broadcast your message here`\n"
+            "➡️ `/broadcast` (reply to a message)"
+        )
 
     groups = groups_col.find()
     success, fail = 0, 0
