@@ -45,10 +45,12 @@ async def broadcast(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id != OWNER_ID:
         return await update.message.reply_text("⛔ Only owner can use this command!")
 
-    if not context.args:
-        return await update.message.reply_text("Usage: /broadcast <message>")
+    # Pura message lo (command ke baad ka part)
+    text = update.message.text
+    message = text[len("/broadcast "):].strip()
 
-    message = " ".join(context.args)
+    if not message:
+        return await update.message.reply_text("Usage: /broadcast <message>")
 
     groups = groups_col.find()
     success, fail = 0, 0
